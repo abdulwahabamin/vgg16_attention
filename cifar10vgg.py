@@ -60,6 +60,10 @@ class cifar10vgg:
         self.x_shape = [32,32,3]
 
         self.model = self.build_model()
+
+        if not os.path.exists(save_dir):
+            os.mkdir(save_dir)
+
         if train:
             self.model = self.train(self.model, save_dir=save_dir)
         else:
