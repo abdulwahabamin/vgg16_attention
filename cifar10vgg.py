@@ -1,17 +1,20 @@
 
 from __future__ import print_function
+import os
+from typing import Optional
+import argparse
+
 import keras
-from keras.datasets import cifar10
-from keras.preprocessing.image import ImageDataGenerator
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Flatten, Multiply
-from keras.layers import Conv2D, MaxPooling2D, BatchNormalization, Input
-from keras import optimizers
 import numpy as np
-from keras.layers.core import Lambda
 from keras import backend as K
+from keras import optimizers
 from keras import regularizers
+from keras.datasets import cifar10
+from keras.layers import Conv2D, MaxPooling2D, BatchNormalization, Input
+from keras.layers import Dense, Dropout, Activation, Flatten, Multiply
+from keras.layers.core import Lambda
 from keras.models import Model
+from keras.preprocessing.image import ImageDataGenerator
 
 
 def logFunc(x):
@@ -26,15 +29,39 @@ def attention(x,l_name):
     return x
 
 
+class CSVLoggerV2(keras.callbacks.CSVLogger):
+    def __init__(self, *args, **kwargs):
+        super (CSVLoggerV2, self).__init__(*args, **kwargs)
+
+    def on_epoch_end (self, epoch, logs = None):
+        logs.update({'lr':K.eval(self.model.optimizer.lr)})
+        super (CSVLoggerV2, self).on_epoch_end(epoch, logs)
+
+
+    def on_train_begin(self, logs=None):
+        header = None
+        if self.append:
+            if os.path.exists(self.filename):
+                try:
+                    csv_file = pd.read_csv(self.filename)
+                    if 'lr' in cvs_file.columns:
+                        column = csv_file['lr']
+                        lr = column[len(column)-1]
+                        K.set_value(self.model.optimizer.lr, lr)
+                except:
+                    pass
+        super (CSVLoggerV2, self).on_train_begin(logs)
+
+
 class cifar10vgg:
-    def __init__(self,train=True):
+    def __init__(self, train=True, save_dir: Optional[str] = './'):
         self.num_classes = 10
         self.weight_decay = 0.0005
         self.x_shape = [32,32,3]
 
         self.model = self.build_model()
         if train:
-            self.model = self.train(self.model)
+            self.model = self.train(self.model, save_dir=save_dir)
         else:
             self.model.load_weights('cifar10vgg.h5')
 
@@ -99,7 +126,6 @@ class cifar10vgg:
 
         x = MaxPooling2D(pool_size=(2, 2))(x)
 
-
         x = Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay))(x)
         x = Activation('relu')(x)
         x = BatchNormalization()(x)
@@ -155,7 +181,7 @@ class cifar10vgg:
             x = self.normalize_production(x)
         return self.model.predict(x,batch_size)
 
-    def train(self,model):
+    def train(self, model, save_dir):
 
         #training parameters
         batch_size = 128
@@ -200,16 +226,22 @@ class cifar10vgg:
 
         # training process in a for loop with learning rate drop every 25 epoches.
 
+        csv_logger = CSVLoggerV2(save_dir + '/' + 'log.csv', separator=',', append=True)
+
         historytemp = model.fit_generator(datagen.flow(x_train, y_train,
                                          batch_size=batch_size),
                             steps_per_epoch=x_train.shape[0] // batch_size,
                             epochs=maxepoches,
-                            validation_data=(x_test, y_test),callbacks=[reduce_lr],verbose=2)
-        model.save_weights('cifar10vgg.h5')
+                            validation_data=(x_test, y_test),callbacks=[reduce_lr, csv_logger],verbose=2)
+        model.save_weights(os.path.join(save_dir, 'cifar10vgg.h5'))
         return model
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('save_dir', help='Path to save directory')
+    args = parser.parse_args()
+
     (x_train, y_train), (x_test, y_test) = cifar10.load_data()
     x_train = x_train.astype('float32')
     x_test = x_test.astype('float32')
@@ -217,10 +249,10 @@ if __name__ == '__main__':
     y_train = keras.utils.to_categorical(y_train, 10)
     y_test = keras.utils.to_categorical(y_test, 10)
 
-    model = cifar10vgg()
+    model = cifar10vgg(save_dir=args.save_dir)
 
     predicted_x = model.predict(x_test)
-    residuals = np.argmax(predicted_x,1)!=np.argmax(y_test,1)
+    residuals = np.argmax(predicted_x,1) != np.argmax(y_test,1)
 
     loss = sum(residuals)/len(residuals)
     print("the validation 0/1 loss is: ",loss)
