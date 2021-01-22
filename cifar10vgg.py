@@ -235,9 +235,10 @@ class cifar10vgg:
         # training process in a for loop with learning rate drop every 25 epoches.
 
         csv_logger = CSVLoggerV2(save_dir + '/' + 'log.csv', separator=',', append=True)
-        f = open(os.path.join(save_dir, "model.txt"), "w+")
-        f.write(model.summary())
-        f.close()
+        # f = open(os.path.join(save_dir, "model.txt"), "w+")
+        with open(os.path.join(save_dir, "model.txt"), "w+") as fh:
+            # Pass the file handle in as a lambda function to make it callable
+            model.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         historytemp = model.fit_generator(datagen.flow(x_train, y_train,
                                          batch_size=batch_size),
