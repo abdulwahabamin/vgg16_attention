@@ -130,6 +130,7 @@ class cifar10vgg:
         x = Conv2D(512, (3, 3), padding='same',kernel_regularizer=regularizers.l2(weight_decay))(x)
         x = Activation('relu')(x)
         x = BatchNormalization()(x)
+        x = attention(x, "attention_4")
 
         x = MaxPooling2D(pool_size=(2, 2))(x)
 
